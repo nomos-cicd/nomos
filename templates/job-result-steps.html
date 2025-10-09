@@ -1,9 +1,9 @@
 <h3 class="uk-card-title">Steps</h3>
-<ul class="uk-list uk-list-divider uk-margin-remove uk-padding-remove">
+<ul class="uk-list uk-list-divider m-0 p-0">
     {% for step in result.steps %}
     <li>
-        <div class="uk-grid-small uk-flex-middle" uk-grid>
-            <div class="uk-width-auto">
+        <div class="flex items-center gap-2">
+            <div class="w-auto">
                 {% if step.finished_at.is_some() %}
                     {% if step.status == crate::script::models::ScriptStatus::Success %}
                     <span style="color: green;">✓</span>
@@ -14,16 +14,16 @@
                     {% endif %}
                 {% else %}
                     {% if step.started_at.is_some() %}
-                    <div uk-spinner></div>
+                    <div data-uk-spinner></div>
                     {% else %}
                     <span>⏱</span>
                     {% endif %}
                 {% endif %}
             </div>
-            <div class="uk-width-expand">
-                <h4 class="uk-margin-remove">{{ step.name }}</h4>
+            <div class="flex-1">
+                <h4 class="m-0">{{ step.name }}</h4>
                 {% if step.started_at.is_some() %}
-                <p class="uk-text-small uk-text-muted uk-margin-remove">
+                <p class="text-sm text-muted-foreground m-0">
                     {% if step.started_at.is_some() %}
                     Started: {{ step.started_at.unwrap() }}
                     {% endif %}

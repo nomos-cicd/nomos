@@ -1,13 +1,13 @@
 {% extends "fragment-base.html" %}
 
 {% block body %}
-<div class="uk-container uk-container-large uk-margin">
-    <div class="uk-card uk-card-default">
+<div class="uk-container uk-container-lg my-4">
+    <div class="uk-card">
         <div class="uk-overflow-auto">
             <table class="uk-table uk-table-middle uk-table-divider uk-table-hover">
                 <thead>
                     <tr>
-                        <th class="uk-width-small">ID</th>
+                        <th style="width: 10%">ID</th>
                         <th>Name</th>
                         <th>Parameters</th>
                         <th>Steps</th>
@@ -22,11 +22,11 @@
                         <td>{{ script.parameters.len() }}</td>
                         <td>{{ script.steps.len() }}</td>
                         <td>
-                            <a href="/scripts/{{ script.id }}" class="uk-button uk-button-default uk-button-small">
+                            <a href="/scripts/{{ script.id }}" class="uk-btn uk-btn-default uk-btn-sm">
                                 View
                             </a>
                             <a href="/jobs/create?from-script-id={{ script.id }}"
-                                class="uk-button uk-button-primary uk-button-small">
+                                class="uk-btn uk-btn-primary uk-btn-sm">
                                 Create job
                             </a>
                         </td>

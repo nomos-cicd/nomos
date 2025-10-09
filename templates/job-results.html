@@ -1,17 +1,17 @@
 {% extends "fragment-base.html" %}
 
 {% block body %}
-<div class="uk-container uk-container-large uk-margin">
-    <div class="uk-card uk-card-default">
-        <div class="uk-card-header uk-background-muted">
-            <div class="uk-grid-small uk-flex-middle" uk-grid>
-                <div class="uk-width-expand">
-                    <h3 class="uk-card-title uk-margin-remove-bottom">Job Results</h3>
+<div class="uk-container uk-container-lg my-4">
+    <div class="uk-card">
+        <div class="uk-card-header">
+            <div class="flex items-center">
+                <div class="flex-1">
+                    <h3 class="uk-card-title mb-0">Job Results</h3>
                 </div>
                 {% if job_id_filter.is_some() %}
-                <div class="uk-width-auto">
+                <div class="w-auto">
                     <span class="uk-label">Filtered by: {{ job_id_filter.unwrap() }}</span>
-                    <a href="/job-results" class="uk-margin-small-left" uk-icon="icon: close"></a>
+                    <a href="/job-results" class="ml-2" data-uk-icon="icon: close"></a>
                 </div>
                 {% endif %}
             </div>
@@ -24,49 +24,6 @@
 </div>
 
 <style>
-    .uk-timeline {
-        padding: 0;
-        list-style: none;
-    }
-
-    .uk-timeline-item {
-        position: relative;
-        padding-left: 40px;
-        margin-bottom: 20px;
-    }
-
-    .uk-timeline-item:last-child {
-        margin-bottom: 0;
-    }
-
-    .uk-timeline-icon {
-        position: absolute;
-        left: 0;
-        width: 30px;
-        height: 30px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-    }
-
-    .uk-timeline-content {
-        border-left: 1px solid #e5e5e5;
-        padding-left: 20px;
-        padding-bottom: 20px;
-    }
-
-    .uk-timeline-item:last-child .uk-timeline-content {
-        padding-bottom: 0;
-    }
-
-    .uk-table td {
-        vertical-align: middle;
-    }
-
-    .steps-content {
-        transition: all 0.3s ease-in-out;
-    }
-
     .job-actions {
         opacity: 0;
         transition: opacity 0.2s ease-in-out;
@@ -76,24 +33,12 @@
         opacity: 1;
     }
 
-    [uk-toggle]>[uk-icon="chevron-down"] {
+    [data-uk-toggle]>[data-uk-icon="chevron-down"] {
         transition: transform 0.15s ease-in-out;
     }
 
-    [aria-expanded="true"]>[uk-icon="chevron-down"] {
+    [aria-expanded="true"]>[data-uk-icon="chevron-down"] {
         transform: rotate(180deg);
-    }
-
-    .abort-status {
-        font-weight: bold;
-    }
-
-    .abort-status.aborted {
-        color: #f0506e;
-    }
-
-    .abort-status.not-aborted {
-        color: #32d296;
     }
 </style>
 

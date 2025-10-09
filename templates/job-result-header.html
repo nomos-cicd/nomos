@@ -1,5 +1,5 @@
 <h3 class="uk-card-title">Job: {{ result.job_id }}</h3>
-<p class="uk-text-meta">
+<p class="text-muted-foreground">
     Started: {{ result.started_at }} |
     {% if result.finished_at.is_some() %}
     Finished: {{ result.finished_at.unwrap() }}
@@ -8,7 +8,7 @@
     {% endif %}
 </p>
 <span
-    class="uk-label uk-label-{% if result.finished_at.is_some() %}{% if result.status == crate::script::models::ScriptStatus::Success %}success{% else if result.status == crate::script::models::ScriptStatus::Failed %}danger{% else if result.status == crate::script::models::ScriptStatus::Aborted %}warning{% else %}default{% endif %}{% else %}primary{% endif %}">
+    class="uk-label uk-label-{% if result.finished_at.is_some() %}{% if result.status == crate::script::models::ScriptStatus::Success %}success{% else if result.status == crate::script::models::ScriptStatus::Failed %}destructive{% else if result.status == crate::script::models::ScriptStatus::Aborted %}warning{% else %}default{% endif %}{% else %}primary{% endif %}">
     {% if result.finished_at.is_some() %}
     {{ result.status }}
     {% else %}

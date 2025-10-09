@@ -21,24 +21,32 @@
         }
     </style>
 
-    <link rel="stylesheet" href="https://unpkg.com/franken-ui/dist/css/core.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.0/dist/css/core.min.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/franken-ui@2.1.0/dist/css/utilities.min.css" />
     <link rel="stylesheet" data-name="vs/editor/editor.main"
         href="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs/editor/editor.main.css" />
 
     <script>
-        const htmlElement = document.documentElement;
-        if (localStorage.getItem("mode") === "dark" ||
-            (!("mode" in localStorage) && window.matchMedia("(prefers-color-scheme: dark)").matches)) {
+        (() => {
+            const htmlElement = document.documentElement;
+            const frankenSettings = JSON.parse(localStorage.getItem("__FRANKEN__") || "{}");
+
+            // Dark mode
+            const preferredMode = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+            const mode = frankenSettings.mode || preferredMode;
             htmlElement.classList.add("dark");
-        } else {
-            htmlElement.classList.remove("dark");
-        }
-        htmlElement.classList.add(localStorage.getItem("theme") || "uk-theme-zinc");
-        htmlElement.classList.add("dark");
+
+            // Apply theme and other settings from localStorage
+            htmlElement.classList.add(frankenSettings.theme || "uk-theme-emerald");
+            htmlElement.classList.add(frankenSettings.radii || "uk-radii-md");
+            htmlElement.classList.add(frankenSettings.shadows || "uk-shadows-sm");
+            htmlElement.classList.add(frankenSettings.font || "uk-font-sm");
+            htmlElement.classList.add(frankenSettings.chart || "uk-chart-default");
+        })();
     </script>
 
-    <script type="module" src="https://unpkg.com/franken-ui/dist/js/core.iife.js"></script>
-    <script type="module" src="https://unpkg.com/franken-ui/dist/js/icon.iife.js"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/franken-ui@2.1.0/dist/js/core.iife.js"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/franken-ui@2.1.0/dist/js/icon.iife.js"></script>
     <script src="https://unpkg.com/htmx.org@2.0.3"></script>
     <script src="https://unpkg.com/htmx.org@1.9.12/dist/ext/sse.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.js"></script>
@@ -48,16 +56,17 @@
 </head>
 
 <body class="bg-background text-foreground">
-    <div class="uk-navbar-container" uk-sticky="show-on-up: true">
-        <nav class="uk-container" uk-navbar>
-            <div class="uk-navbar-left">
-                <ul class="uk-navbar-nav">
+    <!-- Navbar reimplemented with flex and Drop component -->
+    <div data-uk-sticky="show-on-up: true" class="border-b bg-background/80 backdrop-blur">
+        <nav class="uk-container flex h-16 items-center">
+            <div class="flex items-center gap-x-4">
+                <ul class="uk-nav uk-nav-default flex items-center gap-x-4">
                     <li class='{% if title == "Job Results" %}uk-active{% endif %}'>
                         <a href="/job-results">Job Results</a>
                     </li>
                     <li>
                         <a href="#" class='{% if title == "Jobs" || title == "Create Job" %}uk-active{% endif %}'>
-                            Jobs <span uk-navbar-parent-icon></span>
+                            Jobs <span data-uk-icon="icon: chevron-down; ratio: .8"></span>
                         </a>
                         <div class="uk-navbar-dropdown">
                             <ul class="uk-nav uk-navbar-dropdown-nav">
@@ -73,7 +82,7 @@
                     <li>
                         <a href="#"
                             class='{% if title == "Credentials" || title == "Create Credential" %}uk-active{% endif %}'>
-                            Credentials <span uk-navbar-parent-icon></span>
+                            Credentials <span data-uk-icon="icon: chevron-down; ratio: .8"></span>
                         </a>
                         <div class="uk-navbar-dropdown">
                             <ul class="uk-nav uk-navbar-dropdown-nav">
@@ -88,7 +97,7 @@
                     </li>
                     <li>
                         <a href="#" class='{% if title == "Scripts" || title == "Create Script" %}uk-active{% endif %}'>
-                            Scripts <span uk-navbar-parent-icon></span>
+                            Scripts <span data-uk-icon="icon: chevron-down; ratio: .8"></span>
                         </a>
                         <div class="uk-navbar-dropdown">
                             <ul class="uk-nav uk-navbar-dropdown-nav">
@@ -106,7 +115,7 @@
         </nav>
     </div>
 
-    <div class="uk-margin-top">
+    <div class="mt-4">
         {% block body %}{% endblock %}
     </div>
 

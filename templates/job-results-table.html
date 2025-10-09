@@ -8,14 +8,14 @@
             <th>Started At</th>
             <th>Updated At</th>
             <th>Finished At</th>
-            <th class="uk-text-center">Actions</th>
+            <th class="text-center">Actions</th>
         </tr>
     </thead>
     <tbody>
         {% for result in results %}
         <tr>
             <td>
-                <button class="uk-button uk-button-small uk-button-default" uk-toggle="target: #steps-{{ result.id }}">
+                <button class="uk-btn uk-btn-sm uk-btn-default" data-uk-toggle="target: #steps-{{ result.id }}">
                     ▼
                 </button>
             </td>
@@ -26,7 +26,7 @@
                 {% if result.status == crate::script::models::ScriptStatus::Success %}
                 <span class="uk-label uk-label-success">Success</span>
                 {% else if result.status == crate::script::models::ScriptStatus::Failed %}
-                <span class="uk-label uk-label-danger">Failed</span>
+                <span class="uk-label uk-label-destructive">Failed</span>
                 {% else %}
                 <span class="uk-label uk-label-warning">Aborted</span>
                 {% endif %}
@@ -44,22 +44,22 @@
                 {% endif %}
             </td>
             <td>
-                <div class="uk-flex uk-flex-center uk-flex-middle">
-                    <a href="/job-results/{{ result.id }}" class="uk-button uk-button-small uk-button-default"
-                        uk-tooltip="View Details">
+                <div class="flex justify-center items-center">
+                    <a href="/job-results/{{ result.id }}" class="uk-btn uk-btn-sm uk-btn-default"
+                        data-uk-tooltip="View Details">
                         View
                     </a>
                 </div>
             </td>
         </tr>
         <tr>
-            <td colspan="8" class="uk-padding-remove">
-                <div id="steps-{{ result.id }}" class="uk-padding-small uk-background-secondary" hidden>
-                    <ul class="uk-list uk-list-divider uk-margin-remove uk-padding-remove">
+            <td colspan="8" class="p-0">
+                <div id="steps-{{ result.id }}" class="p-2 bg-muted" hidden>
+                    <ul class="uk-list uk-list-divider m-0 p-0">
                         {% for step in result.steps %}
                         <li>
-                            <div class="uk-grid-small uk-flex-middle" uk-grid>
-                                <div class="uk-width-auto">
+                            <div class="flex items-center gap-2">
+                                <div class="w-auto">
                                     {% if step.finished_at.is_some() %}
                                     {% if step.status == crate::script::models::ScriptStatus::Success %}
                                     <span style="color: green;">✓</span>
@@ -70,16 +70,16 @@
                                     {% endif %}
                                     {% else %}
                                     {% if step.started_at.is_some() %}
-                                    <div uk-spinner></div>
+                                    <div data-uk-spinner></div>
                                     {% else %}
                                     <span>⏱</span>
                                     {% endif %}
                                     {% endif %}
                                 </div>
-                                <div class="uk-width-expand">
-                                    <h4 class="uk-margin-remove">{{ step.name }}</h4>
+                                <div class="flex-1">
+                                    <h4 class="m-0">{{ step.name }}</h4>
                                     {% if step.started_at.is_some() %}
-                                    <p class="uk-text-small uk-text-muted uk-margin-remove">
+                                    <p class="text-sm text-muted-foreground m-0">
                                         {% if step.started_at.is_some() %}
                                         Started: {{ step.started_at.unwrap() }}
                                         {% endif %}

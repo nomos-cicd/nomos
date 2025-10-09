@@ -1,11 +1,11 @@
 {% extends "fragment-base.html" %}
 
 {% block body %}
-<div class="uk-container uk-margin-top uk-margin-bottom">
-    <div class="uk-grid uk-grid-medium" uk-grid>
+<div class="uk-container mt-4 mb-4">
+    <div class="flex flex-wrap -mx-2">
         <!-- Job Header Section -->
-        <div class="uk-width-1-2@m uk-width-2-3@l">
-            <div id="header" class="uk-card uk-card-secondary uk-card-body uk-margin-bottom"
+        <div class="w-full md:w-1/2 lg:w-2/3 px-2">
+            <div id="header" class="uk-card bg-muted p-6 mb-4"
                 hx-get="/job-results/{{ result.id }}/header"
                 hx-trigger="load{% if result.finished_at.is_none() %}, every 3s{% endif %}" hx-swap="innerHTML">
             </div>
@@ -15,24 +15,24 @@
         </div>
 
         <!-- Spacer -->
-        <div class="uk-width-1-2@m uk-width-1-3@l"></div>
+        <div class="w-full md:w-1/2 lg:w-1/3 px-2"></div>
 
         <!-- Timeline Section -->
-        <div class="uk-width-1-2@m uk-width-2-3@l">
-            <div id="steps" class="uk-card uk-card-secondary uk-card-body uk-margin-bottom"
+        <div class="w-full md:w-1/2 lg:w-2/3 px-2">
+            <div id="steps" class="uk-card bg-muted p-6 mb-4"
                 hx-get="/job-results/{{ result.id }}/steps"
                 hx-trigger="load{% if result.finished_at.is_none() %}, every 3s{% endif %}" hx-swap="innerHTML">
             </div>
         </div>
 
         <!-- Spacer -->
-        <div class="uk-width-1-2@m uk-width-1-3@l"></div>
+        <div class="w-full md:w-1/2 lg:w-1/3 px-2"></div>
     </div>
 
     <!-- Logs Section -->
-    <div class="uk-card uk-card-secondary uk-card-body uk-grid-margin">
+    <div class="uk-card bg-muted p-6 mt-4">
         <h3 class="uk-card-title">Logs</h3>
-        <div id="logs-container" class="uk-height-large uk-overflow-auto uk-background-secondary uk-padding-small">
+        <div id="logs-container" class="h-96 overflow-auto bg-background p-2">
             <div id="logs" hx-get="/job-results/{{ result.id }}/logs"
                 hx-trigger="load{% if result.finished_at.is_none() %}, every 3s{% endif %}" hx-swap="innerHTML"
                 hx-on::after-swap="scrollLogsToBottom({{ result.finished_at.is_none()|tojson }})">
@@ -42,29 +42,12 @@
 </div>
 
 <style>
-    .uk-card-secondary {
-        background-color: #222;
-    }
-
-    .uk-card-body {
-        padding: 20px;
-    }
-
     .job-status {
         font-weight: bold;
     }
-
-    .job-status.aborted {
-        color: #f0506e;
-    }
-
-    .job-status.failed {
-        color: #faa05a;
-    }
-
-    .job-status.success {
-        color: #32d296;
-    }
+    .job-status.aborted { color: hsl(var(--color-warning)); }
+    .job-status.failed { color: hsl(var(--color-destructive)); }
+    .job-status.success { color: hsl(var(--color-success)); }
 </style>
 
 <script>

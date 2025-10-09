@@ -1,5 +1,5 @@
 {% if result.finished_at.is_none() %}
-<button class="uk-button uk-button-danger" hx-post="/api/job-results/{{ result.id }}/stop"
+<button class="uk-btn uk-btn-destructive" hx-post="/api/job-results/{{ result.id }}/stop"
     hx-trigger="click" hx-swap="none">
     Abort
 </button>
