@@ -2,7 +2,10 @@ use std::path::Path;
 
 use crate::script::ScriptExecutionContext;
 
-use crate::{log::LogLevel, utils::execute_command};
+use crate::{
+    log::LogLevel,
+    utils::{execute_command, execute_command_with_env},
+};
 
 /// docker run -d {..args}
 pub async fn docker_run(image: &str, args: Vec<&str>, context: &mut ScriptExecutionContext<'_>) -> Result<(), String> {
@@ -43,9 +46,14 @@ pub async fn docker_build(
     );
     context
         .job_result
-        .add_log(LogLevel::Info, format!("command: {}", command));
+        .add_log(LogLevel::Info, format!("command: DOCKER_BUILDKIT=1 {}", command));
     if !context.job_result.dry_run {
-        execute_command(&command, context).await?;
+        execute_command_with_env(
+            &command,
+            vec![("DOCKER_BUILDKIT".to_string(), "1".to_string())],
+            context,
+        )
+        .await?;
     }
     Ok(())
 }

@@ -88,7 +88,9 @@ pub async fn git_pull(
                 } else {
                     "git pull".to_string()
                 };
-                context.job_result.add_log(LogLevel::Info, format!("command: {}", log_command));
+                context
+                    .job_result
+                    .add_log(LogLevel::Info, format!("command: {}", log_command));
                 if !context.job_result.dry_run {
                     let tmp_file = NamedTempFile::new().map_err(|e| e.to_string())?;
                     let tmp_path = tmp_file.path();

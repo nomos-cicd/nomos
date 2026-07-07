@@ -137,7 +137,7 @@ impl ScriptExecutor for GitPullScript {
             Some(lfs) => lfs.substitute_parameters(context.parameters, false)?,
             None => return Err("Git LFS parameter must be a boolean".to_string()),
         };
-        
+
         let lfs_str = match lfs_str {
             Some(lfs) => match lfs {
                 SubstitutionResult::Single(s) => s,
