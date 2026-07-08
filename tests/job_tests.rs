@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use nomos_rust::job::{Job, JobExecutor, JobResult};
+use nomos_rust::job::{default_job_results_location, Job, JobExecutor, JobResult};
 use nomos_rust::script::models::{Script, ScriptStatus, ScriptStep};
 use nomos_rust::script::types::{BashScript, ScriptType};
 use nomos_rust::script::ScriptParameterType;
@@ -76,6 +76,7 @@ async fn git_job() {
         .await
         .unwrap();
     let result = JobResult::wait_for_completion(&result).await.unwrap();
+    let result_directory = default_job_results_location().unwrap().join(&result.id);
     assert!(result.finished_at.is_some());
     assert_eq!(result.status, ScriptStatus::Success);
     assert_eq!(result.steps.len(), 3);
@@ -83,6 +84,9 @@ async fn git_job() {
         assert_eq!(step.status, ScriptStatus::Success);
         assert!(step.finished_at.unwrap() > step.started_at.unwrap());
     }
+    assert!(result_directory.join("result.yml").exists());
+    assert!(result_directory.join("log").exists());
+    assert!(!result_directory.join("Hello-World").exists());
 }
 
 #[tokio::test]

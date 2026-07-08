@@ -53,6 +53,7 @@ impl JobExecutor {
 
         let directory = crate::job::utils::default_job_results_location()?.join(&job_result.id);
         fs::create_dir_all(&directory).map_err(|e| format!("Failed to create job result directory: {}", e))?;
+        let cleanup_directory = directory.clone();
 
         job_result.save()?;
 
@@ -105,6 +106,7 @@ impl JobExecutor {
                                         eprintln!("Failed to save job result: {}", e);
                                     }
                                 }
+                                cleanup_job_workspace(&cleanup_directory, &job_result);
                             }
                             Ok(None) => {
                                 eprintln!("{}", message);
@@ -176,6 +178,7 @@ impl JobExecutor {
             ScriptStatus::Failed
         };
         job_result.save()?;
+        cleanup_job_workspace(directory, job_result);
 
         Ok(())
     }
@@ -201,6 +204,60 @@ impl JobExecutor {
             Ok(())
         } else {
             Err(format!("Job {} not found", id))
+        }
+    }
+}
+
+fn cleanup_job_workspace(directory: &Path, job_result: &JobResult) {
+    if job_result.dry_run {
+        return;
+    }
+
+    let entries = match fs::read_dir(directory) {
+        Ok(entries) => entries,
+        Err(e) => {
+            job_result.add_log(
+                crate::log::LogLevel::Warning,
+                format!("Failed to read job workspace for cleanup: {}", e),
+            );
+            return;
+        }
+    };
+
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(e) => {
+                job_result.add_log(
+                    crate::log::LogLevel::Warning,
+                    format!("Failed to read job workspace entry for cleanup: {}", e),
+                );
+                continue;
+            }
+        };
+        let path = entry.path();
+        let file_name = entry.file_name();
+        if file_name == "result.yml" || file_name == "log" {
+            continue;
+        }
+
+        let result = match entry.file_type() {
+            Ok(file_type) if file_type.is_dir() => fs::remove_dir_all(&path),
+            Ok(_) => fs::remove_file(&path),
+            Err(e) => {
+                job_result.add_log(
+                    crate::log::LogLevel::Warning,
+                    format!("Failed to inspect job workspace entry {}: {}", path.display(), e),
+                );
+                continue;
+            }
+        };
+
+        if let Err(e) = result {
+            job_result.add_log(
+                crate::log::LogLevel::Warning,
+                format!("Failed to remove job workspace entry {}: {}", path.display(), e),
+            );
         }
     }
 }
