@@ -41,7 +41,7 @@ pub struct JobLogger {
 
 impl JobLogger {
     pub fn new(job_id: String, result_id: String, dry_run: bool) -> Result<Self, String> {
-        let log_path = get_log_file_path(&job_id, &result_id)?;
+        let log_path = primary_log_file_path(&result_id)?;
         if dry_run {
             return Ok(JobLogger {
                 log_filename: log_path.clone(),
@@ -87,7 +87,7 @@ impl JobLogger {
     }
 
     pub fn get_logs(&self) -> Result<Vec<Log>, String> {
-        let path = get_log_file_path(&self.job_id, &self.result_id)?;
+        let path = readable_log_file_path(&self.result_id)?;
         let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
 
         let logs = content
@@ -100,7 +100,7 @@ impl JobLogger {
 
     pub fn get_log_page(&self, after: Option<u64>, before: Option<u64>, limit: usize) -> Result<LogPage, String> {
         let limit = limit.clamp(1, 500);
-        let path = get_log_file_path(&self.job_id, &self.result_id)?;
+        let path = readable_log_file_path(&self.result_id)?;
         let mut file = match std::fs::File::open(path) {
             Ok(file) => file,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -266,7 +266,21 @@ fn parse_log_entry(start_offset: u64, end_offset: u64, line: &str) -> Option<Log
         })
 }
 
-fn get_log_file_path(_job_id: &str, result_id: &str) -> Result<PathBuf, String> {
+fn readable_log_file_path(result_id: &str) -> Result<PathBuf, String> {
+    let primary = primary_log_file_path(result_id)?;
+    if primary.exists() {
+        return Ok(primary);
+    }
+
+    let legacy = legacy_log_file_path(result_id)?;
+    if legacy.exists() {
+        return Ok(legacy);
+    }
+
+    Ok(primary)
+}
+
+fn primary_log_file_path(result_id: &str) -> Result<PathBuf, String> {
     if cfg!(target_os = "windows") {
         let appdata = std::env::var("APPDATA").map_err(|e| e.to_string())?;
         Ok(PathBuf::from(appdata)
@@ -274,6 +288,17 @@ fn get_log_file_path(_job_id: &str, result_id: &str) -> Result<PathBuf, String> 
             .join("job_results")
             .join(result_id)
             .join("log"))
+    } else {
+        Ok(PathBuf::from("/var/lib/nomos")
+            .join("job_results")
+            .join(result_id)
+            .join("log"))
+    }
+}
+
+fn legacy_log_file_path(result_id: &str) -> Result<PathBuf, String> {
+    if cfg!(target_os = "windows") {
+        primary_log_file_path(result_id)
     } else {
         Ok(PathBuf::from("/var/log/nomos")
             .join("job_results")
