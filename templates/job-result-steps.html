@@ -25,10 +25,10 @@
                 {% if step.started_at.is_some() %}
                 <p class="text-sm text-muted-foreground m-0">
                     {% if step.started_at.is_some() %}
-                    Started: {{ step.started_at.unwrap() }}
+                    Started: {{ step.started_at.unwrap().format("%Y-%m-%d %H:%M:%S") }}
                     {% endif %}
                     {% if step.finished_at.is_some() %}
-                    | Finished: {{ step.finished_at.unwrap() }}
+                    | Finished: {{ step.finished_at.unwrap().format("%Y-%m-%d %H:%M:%S") }}
                     {% endif %}
                 </p>
                 {% endif %}

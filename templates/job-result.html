@@ -31,12 +31,18 @@
 
     <!-- Logs Section -->
     <div class="uk-card bg-muted p-6 mt-4">
-        <h3 class="uk-card-title">Logs</h3>
-        <div id="logs-container" class="h-96 overflow-auto bg-background p-2">
-            <div id="logs" hx-get="/job-results/{{ result.id }}/logs"
-                hx-trigger="load{% if result.finished_at.is_none() %}, every 3s{% endif %}" hx-swap="innerHTML"
-                hx-on::after-swap="scrollLogsToBottom({{ result.finished_at.is_none()|tojson }})">
+        <div class="flex items-center justify-between gap-2 mb-3">
+            <h3 class="uk-card-title m-0">Logs</h3>
+            <div class="flex items-center gap-2">
+                <span id="logs-state" class="text-sm text-muted-foreground">Loading</span>
+                <button id="follow-logs" class="uk-btn uk-btn-sm uk-btn-default" type="button">Follow</button>
             </div>
+        </div>
+        <div id="logs-container" class="h-96 overflow-auto bg-background p-2 font-mono text-sm">
+            <button id="load-older-logs" class="uk-btn uk-btn-sm uk-btn-default w-full mb-2" type="button" hidden>
+                Load older logs
+            </button>
+            <div id="logs"></div>
         </div>
     </div>
 </div>
@@ -48,14 +54,169 @@
     .job-status.aborted { color: hsl(var(--color-warning)); }
     .job-status.failed { color: hsl(var(--color-destructive)); }
     .job-status.success { color: hsl(var(--color-success)); }
+    .log-row {
+        display: grid;
+        grid-template-columns: 9.5rem minmax(0, 1fr);
+        gap: 0.75rem;
+        align-items: start;
+        padding: 0.125rem 0;
+    }
+    .log-row pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        margin: 0;
+    }
+    .log-time {
+        color: hsl(var(--color-muted-foreground));
+        font-size: 0.8125rem;
+    }
+    @media (max-width: 640px) {
+        .log-row {
+            grid-template-columns: 1fr;
+            gap: 0.25rem;
+            padding: 0.375rem 0;
+        }
+    }
 </style>
 
 <script>
-    function scrollLogsToBottom(isRunning) {
-        if (isRunning) {
-            const logsContainer = document.getElementById('logs-container');
+    (() => {
+        const resultId = "{{ result.id }}";
+        const logsContainer = document.getElementById('logs-container');
+        const logsEl = document.getElementById('logs');
+        const loadOlderButton = document.getElementById('load-older-logs');
+        const followButton = document.getElementById('follow-logs');
+        const logsState = document.getElementById('logs-state');
+        const pageSize = 200;
+        const pollMs = 3000;
+        let oldestOffset = null;
+        let nextAfter = null;
+        let nextBefore = null;
+        let isFinished = {{ result.finished_at.is_some()|tojson }};
+        let pollTimer = null;
+        let requestInFlight = false;
+        let followLogs = true;
+
+        function isNearBottom() {
+            return logsContainer.scrollHeight - logsContainer.scrollTop - logsContainer.clientHeight < 48;
+        }
+
+        function scrollToBottom() {
             logsContainer.scrollTop = logsContainer.scrollHeight;
         }
-    }
+
+        function formatTimestamp(value) {
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) {
+                return value;
+            }
+            const pad = (part) => String(part).padStart(2, '0');
+            return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+        }
+
+        function createLogRow(log) {
+            const row = document.createElement('div');
+            row.className = 'log-row';
+            row.dataset.startOffset = log.start_offset;
+            row.dataset.endOffset = log.end_offset;
+
+            const timestamp = document.createElement('span');
+            timestamp.className = 'log-time';
+            timestamp.textContent = formatTimestamp(log.timestamp);
+
+            const message = document.createElement('pre');
+            message.textContent = log.message;
+
+            row.append(timestamp, message);
+            return row;
+        }
+
+        function applyPage(page, mode) {
+            const shouldStickToBottom = followLogs && isNearBottom();
+            const previousHeight = logsContainer.scrollHeight;
+
+            if (mode === 'older') {
+                const fragment = document.createDocumentFragment();
+                for (const log of page.logs) {
+                    fragment.appendChild(createLogRow(log));
+                }
+                logsEl.prepend(fragment);
+                logsContainer.scrollTop += logsContainer.scrollHeight - previousHeight;
+            } else {
+                const fragment = document.createDocumentFragment();
+                for (const log of page.logs) {
+                    fragment.appendChild(createLogRow(log));
+                }
+                logsEl.appendChild(fragment);
+                if (shouldStickToBottom || lastIndex === null) {
+                    scrollToBottom();
+                }
+            }
+
+            if (page.logs.length > 0) {
+                const first = page.logs[0].start_offset;
+                oldestOffset = oldestOffset === null ? first : Math.min(oldestOffset, first);
+            }
+
+            nextBefore = page.next_before;
+            if (mode !== 'older') {
+                nextAfter = page.next_after ?? nextAfter;
+            }
+            loadOlderButton.hidden = !page.has_older || oldestOffset === 0;
+            isFinished = page.finished;
+            const loadedCount = logsEl.childElementCount;
+            logsState.textContent = page.finished ? `${page.status} · ${loadedCount} shown` : `Running · ${loadedCount} shown`;
+
+            if (page.finished && pollTimer !== null) {
+                clearInterval(pollTimer);
+                pollTimer = null;
+            }
+        }
+
+        async function fetchLogs(params, mode) {
+            if (requestInFlight) {
+                return;
+            }
+            requestInFlight = true;
+            const query = new URLSearchParams(params);
+            try {
+                const response = await fetch(`/api/job-results/${resultId}/logs?${query}`);
+                if (!response.ok) {
+                    logsState.textContent = 'Log fetch failed';
+                    return;
+                }
+                applyPage(await response.json(), mode);
+            } finally {
+                requestInFlight = false;
+            }
+        }
+
+        loadOlderButton.addEventListener('click', () => {
+            const before = oldestOffset ?? nextBefore;
+            if (before !== null) {
+                fetchLogs({ before, limit: pageSize }, 'older');
+            }
+        });
+
+        followButton.addEventListener('click', () => {
+            followLogs = true;
+            scrollToBottom();
+        });
+
+        logsContainer.addEventListener('scroll', () => {
+            followLogs = isNearBottom();
+        });
+
+        fetchLogs({ limit: pageSize }, 'latest');
+        if (!isFinished) {
+            pollTimer = setInterval(() => {
+                if (nextAfter !== null) {
+                    fetchLogs({ after: nextAfter, limit: pageSize }, 'newer');
+                } else {
+                    fetchLogs({ limit: pageSize }, 'latest');
+                }
+            }, pollMs);
+        }
+    })();
 </script>
 {% endblock %}

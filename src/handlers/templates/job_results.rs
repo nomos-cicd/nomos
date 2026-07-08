@@ -52,7 +52,7 @@ pub struct JobResultsQuery {
 #[template(path = "job-result-header.html")]
 pub struct JobResultHeaderTemplate<'a> {
     result: &'a JobResult,
-    now: DateTime<Utc>,
+    running_for: String,
 }
 
 #[derive(Template)]
@@ -65,6 +65,24 @@ pub struct JobResultStepsTemplate<'a> {
 #[template(path = "job-result-abort-button.html")]
 pub struct JobResultAbortButtonTemplate<'a> {
     result: &'a JobResult,
+}
+
+fn format_duration(seconds: i64) -> String {
+    let seconds = seconds.max(0);
+    let days = seconds / 86_400;
+    let hours = (seconds % 86_400) / 3_600;
+    let minutes = (seconds % 3_600) / 60;
+    let seconds = seconds % 60;
+
+    if days > 0 {
+        format!("{days}d {hours:02}h")
+    } else if hours > 0 {
+        format!("{hours}h {minutes:02}m")
+    } else if minutes > 0 {
+        format!("{minutes}m {seconds:02}s")
+    } else {
+        format!("{seconds}s")
+    }
 }
 
 pub async fn template_job_results(query: Query<JobResultsQuery>) -> Response {
@@ -121,29 +139,32 @@ pub async fn template_job_result(Path(id): Path<String>) -> Response {
 pub async fn template_job_result_logs(Path(result_id): Path<String>) -> Response {
     match JobResult::get(&result_id) {
         Ok(Some(result)) => {
-            if let Ok(logger) = result.logger.lock() {
-                match logger.get_logs() {
-                    Ok(logs) => {
-                        let formatted_logs: Vec<FormattedLog> = logs
-                            .iter()
-                            .map(|log| FormattedLog {
-                                timestamp: &log.timestamp,
-                                level: &log.level,
-                                message: &log.message,
-                            })
-                            .collect();
-
-                        let template = JobResultLogsTemplate { logs: formatted_logs };
-                        Html(template.render().unwrap()).into_response()
-                    }
-                    Err(e) => {
-                        eprintln!("Failed to get logs for job result {}: {}", result_id, e);
-                        StatusCode::INTERNAL_SERVER_ERROR.into_response()
-                    }
+            let logger = match result.logger.lock() {
+                Ok(logger) => logger.clone(),
+                Err(_) => {
+                    eprintln!("Failed to lock logger for job result {}", result_id);
+                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
                 }
-            } else {
-                eprintln!("Failed to lock logger for job result {}", result_id);
-                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+            };
+
+            match logger.get_logs() {
+                Ok(logs) => {
+                    let formatted_logs: Vec<FormattedLog> = logs
+                        .iter()
+                        .map(|log| FormattedLog {
+                            timestamp: &log.timestamp,
+                            level: &log.level,
+                            message: &log.message,
+                        })
+                        .collect();
+
+                    let template = JobResultLogsTemplate { logs: formatted_logs };
+                    Html(template.render().unwrap()).into_response()
+                }
+                Err(e) => {
+                    eprintln!("Failed to get logs for job result {}: {}", result_id, e);
+                    StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                }
             }
         }
         Ok(None) => {
@@ -163,7 +184,10 @@ pub async fn template_job_result_dynamic_content(Path((id, content_type)): Path<
             let now = Utc::now();
             let template = match content_type.as_str() {
                 "header" => {
-                    let template = JobResultHeaderTemplate { result: &result, now };
+                    let template = JobResultHeaderTemplate {
+                        result: &result,
+                        running_for: format_duration((now - result.started_at).num_seconds()),
+                    };
                     template.render().unwrap()
                 }
                 "steps" => {
