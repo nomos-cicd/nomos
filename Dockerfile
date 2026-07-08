@@ -1,5 +1,5 @@
 # Stage 1: Build dependencies
-FROM rust:1.75 AS deps-builder
+FROM rust:1.85 AS deps-builder
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 # Create dummy lib.rs and main.rs to build dependencies
@@ -10,7 +10,7 @@ RUN mkdir src && \
     rm -rf src
 
 # Stage 2: Build the application
-FROM rust:1.75 AS app-builder
+FROM rust:1.85 AS app-builder
 WORKDIR /app
 # Copy the dependencies build artifacts
 COPY --from=deps-builder /app/target target
