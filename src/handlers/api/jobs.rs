@@ -26,7 +26,7 @@ pub async fn get_jobs(Query(query): Query<JobsQuery>) -> Response {
     let jobs = Job::get_all().unwrap_or_default();
     let filtered_jobs: Vec<Job> = jobs
         .into_iter()
-        .filter(|job| query.script_id.as_ref().map_or(true, |id| job.script_id == *id))
+        .filter(|job| query.script_id.as_ref().is_none_or(|id| job.script_id == *id))
         .collect();
 
     Json(filtered_jobs).into_response()

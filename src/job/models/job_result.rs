@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::{
+    cmp::Reverse,
     fs::{self, File},
     io::BufReader,
     path::PathBuf,
@@ -140,7 +141,7 @@ impl JobResult {
             }
         }
 
-        job_results.sort_by(|a, b| b.started_at.cmp(&a.started_at));
+        job_results.sort_by_key(|result| Reverse(result.started_at));
         Ok(job_results)
     }
 

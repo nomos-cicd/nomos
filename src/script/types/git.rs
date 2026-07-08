@@ -67,7 +67,7 @@ impl ScriptExecutor for GitCloneScript {
         git_clone(&url, branch.as_str(), credential_id.as_deref(), context).await?;
         tokio::task::yield_now().await;
 
-        let mut new_dir = match url.split('/').last() {
+        let mut new_dir = match url.split('/').next_back() {
             Some(last_part) => context.directory.join(last_part),
             None => return Err("Invalid URL format".to_string()),
         };

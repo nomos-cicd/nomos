@@ -1,11 +1,12 @@
-use std::{
-    io::{BufRead, BufReader},
-    process::{Child, Command, Stdio},
-};
+use std::process::Stdio;
 
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use sysinfo::{Pid, System};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncRead, BufReader},
+    process::{Child, Command},
+};
 
 use crate::script::ScriptExecutionContext;
 
@@ -16,6 +17,7 @@ pub async fn execute_command(command: &str, context: &mut ScriptExecutionContext
         let mut cmd = Command::new("cmd");
         cmd.args(["/C", command]);
         cmd.current_dir(context.directory);
+        cmd.kill_on_drop(true);
         cmd.stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -24,6 +26,7 @@ pub async fn execute_command(command: &str, context: &mut ScriptExecutionContext
         let mut cmd = Command::new("sh");
         cmd.arg("-c").arg(command);
         cmd.current_dir(context.directory);
+        cmd.kill_on_drop(true);
         cmd.stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -41,6 +44,7 @@ pub async fn execute_command_with_env(
     let child = if cfg!(target_os = "windows") {
         let mut cmd = Command::new("cmd");
         cmd.args(["/C", command]).current_dir(context.directory);
+        cmd.kill_on_drop(true);
         for (key, value) in env {
             cmd.env(key, value);
         }
@@ -51,6 +55,7 @@ pub async fn execute_command_with_env(
     } else {
         let mut cmd = Command::new("sh");
         cmd.arg("-c").arg(command).current_dir(context.directory);
+        cmd.kill_on_drop(true);
         for (key, value) in env {
             cmd.env(key, value);
         }
@@ -64,71 +69,64 @@ pub async fn execute_command_with_env(
 }
 
 async fn execute_script(mut child: Child, context: &mut ScriptExecutionContext<'_>) -> Result<(), String> {
-    eprintln!("Child process id: {}", child.id());
-    context
-        .job_result
-        .child_process_ids
-        .push(child.id().try_into().unwrap());
+    let raw_child_pid = child.id().ok_or_else(|| "Failed to get child process id".to_string())?;
+    eprintln!("Child process id: {}", raw_child_pid);
+    let child_pid = raw_child_pid
+        .try_into()
+        .map_err(|_| "Child process id is too large".to_string())?;
+    context.job_result.child_process_ids.push(child_pid);
     context.job_result.save()?;
-    let stdout = child.stdout.take();
-    if stdout.is_none() {
-        context.job_result.child_process_ids.pop();
-        return Err("Failed to open stdout".to_string());
-    }
-    let stdout = stdout.unwrap();
-    let stderr = child.stderr.take();
-    if stderr.is_none() {
-        context.job_result.child_process_ids.pop();
-        return Err("Failed to open stderr".to_string());
-    }
-    let stderr = stderr.unwrap();
 
-    let stdout_reader = BufReader::new(stdout);
-    let stderr_reader = BufReader::new(stderr);
+    let stdout = child.stdout.take().ok_or_else(|| {
+        context.job_result.child_process_ids.retain(|pid| *pid != child_pid);
+        "Failed to open stdout".to_string()
+    })?;
+    let stderr = child.stderr.take().ok_or_else(|| {
+        context.job_result.child_process_ids.retain(|pid| *pid != child_pid);
+        "Failed to open stderr".to_string()
+    })?;
 
-    // Spawn a task to handle stdout
-    let job_result_clone = context.job_result.clone();
-    tokio::spawn(async move {
-        for line in stdout_reader.lines().map_while(Result::ok) {
-            if !line.is_empty() {
-                job_result_clone.add_log(LogLevel::Info, line);
-            }
-        }
-    });
+    let stdout_handle = read_child_output(stdout, context.job_result.clone(), LogLevel::Info);
+    let stderr_handle = read_child_output(stderr, context.job_result.clone(), LogLevel::Error);
 
-    // Spawn a task to handle stderr
-    let job_result_clone = context.job_result.clone();
-    tokio::spawn(async move {
-        for line in stderr_reader.lines().map_while(Result::ok) {
-            if !line.is_empty() {
-                job_result_clone.add_log(LogLevel::Error, line);
-            }
-        }
-    });
+    let status = child.wait().await.map_err(|e| e.to_string());
+    let stdout_result = stdout_handle.await.map_err(|e| e.to_string());
+    let stderr_result = stderr_handle.await.map_err(|e| e.to_string());
+    context.job_result.child_process_ids.retain(|pid| *pid != child_pid);
 
-    loop {
-        let is_child_running = match child.try_wait() {
-            Ok(Some(_)) => false,
-            Ok(None) => true,
-            Err(_) => false,
-        };
-        if !is_child_running {
-            break;
-        }
-
-        tokio::task::yield_now().await;
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-    }
-    tokio::task::yield_now().await;
-
-    let status = child.wait().map_err(|e| e.to_string())?;
-    context.job_result.child_process_ids.pop();
+    let status = status?;
+    stdout_result?;
+    stderr_result?;
 
     if status.success() {
         Ok(())
     } else {
         Err(format!("Process exited with status: {}", status))
     }
+}
+
+fn read_child_output<R>(output: R, job_result: crate::job::JobResult, level: LogLevel) -> tokio::task::JoinHandle<()>
+where
+    R: AsyncRead + Unpin + Send + 'static,
+{
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(output).lines();
+
+        loop {
+            match lines.next_line().await {
+                Ok(Some(line)) => {
+                    if !line.is_empty() {
+                        job_result.add_log(level.clone(), line);
+                    }
+                }
+                Ok(None) => break,
+                Err(e) => {
+                    eprintln!("Failed to read child process output: {}", e);
+                    break;
+                }
+            }
+        }
+    })
 }
 
 type HmacSha256 = Hmac<Sha256>;

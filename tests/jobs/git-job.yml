@@ -4,7 +4,7 @@ parameters:
   - name: git_clone_url
     default:
       type: string
-      value: "git@github.com:requizm/system-docs.git"
+      value: "https://github.com/octocat/Hello-World.git"
   - name: git_clone_branch
     default:
       type: string

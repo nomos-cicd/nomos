@@ -4,7 +4,7 @@ use std::{
     path::{Path, PathBuf},
     sync::Arc,
 };
-use sysinfo::System;
+use sysinfo::{Pid, System};
 use tokio::{
     sync::Mutex,
     task::{self},
@@ -49,6 +49,7 @@ impl JobExecutor {
         let id = job_result.id.clone();
         let cloned_id = id.clone();
         let other_id = id.clone();
+        let handles = Arc::clone(&self.handles);
 
         let directory = crate::job::utils::default_job_results_location()?.join(&job_result.id);
         fs::create_dir_all(&directory).map_err(|e| format!("Failed to create job result directory: {}", e))?;
@@ -61,6 +62,8 @@ impl JobExecutor {
                 Self::execute_job_result_internal(&mut job_result_clone, &directory, &mut merged_parameters).await;
         });
         let abort_handle = handle.abort_handle();
+        self.handles.lock().await.insert(id, abort_handle);
+
         task::spawn(async move {
             match handle.await {
                 Ok(_) => {}
@@ -74,6 +77,7 @@ impl JobExecutor {
                                 for child_process in &job_result.child_process_ids {
                                     let mut processes = get_process_recursive(*child_process);
                                     processes.reverse(); // Kill child processes first
+                                    processes.push(Pid::from(*child_process));
                                     eprintln!("Killing processes with PID {}", child_process);
                                     for process in processes {
                                         if let Some(process) = s.process(process) {
@@ -112,9 +116,8 @@ impl JobExecutor {
                     }
                 }
             }
+            handles.lock().await.remove(&other_id);
         });
-
-        self.handles.lock().await.insert(id, abort_handle);
 
         Ok(cloned_id)
     }
