@@ -1,69 +1,56 @@
-# Stage 1: Build dependencies
-FROM rust:1.85 AS deps-builder
+# syntax=docker/dockerfile:1.7
+
+FROM rust:1-bookworm AS chef
+RUN cargo install cargo-chef --locked
 WORKDIR /app
+
+FROM chef AS planner
 COPY Cargo.toml Cargo.lock ./
-# Create dummy lib.rs and main.rs to build dependencies
-RUN mkdir src && \
-    echo "fn main() {println!(\"dummy\");}" > src/main.rs && \
-    echo "pub fn dummy() {println!(\"dummy\");}" > src/lib.rs && \
-    cargo build --release && \
-    rm -rf src
+COPY src ./src
+COPY templates ./templates
+RUN cargo chef prepare --recipe-path recipe.json
 
-# Stage 2: Build the application
-FROM rust:1.85 AS app-builder
-WORKDIR /app
-# Copy the dependencies build artifacts
-COPY --from=deps-builder /app/target target
-COPY --from=deps-builder /app/Cargo.toml /app/Cargo.lock ./
-# Copy the actual source code
-COPY src src
-# Copy templates for askama
-COPY templates templates
-# Build the application with static linking
-RUN rustup target add x86_64-unknown-linux-musl && \
-    RUSTFLAGS='-C target-feature=+crt-static' cargo build --release --target x86_64-unknown-linux-musl
+FROM chef AS builder
+RUN rustup target add x86_64-unknown-linux-musl
 
-# Stage 3: Create the final image
-FROM docker:25.0.5-dind
+COPY --from=planner /app/recipe.json recipe.json
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cargo chef cook --release --target x86_64-unknown-linux-musl --recipe-path recipe.json
 
-# Install necessary runtime dependencies
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+COPY templates ./templates
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/usr/local/cargo/git \
+    --mount=type=cache,target=/app/target \
+    cargo build --release --target x86_64-unknown-linux-musl \
+    && cp /app/target/x86_64-unknown-linux-musl/release/nomos-rust /usr/local/bin/nomos-rust
+
+FROM docker:25.0.5-dind AS runtime
+
 RUN apk add --no-cache \
-    openssl \
-    ca-certificates \
-    tzdata \
     bash \
-    musl-dev \
-    libc6-compat \
+    ca-certificates \
     gcompat \
-    git-lfs
+    git-lfs \
+    libc6-compat \
+    openssl \
+    tzdata \
+    && addgroup -S appgroup \
+    && adduser -S appuser -G appgroup \
+    && mkdir -p /app /var/lib/nomos \
+    && chown -R appuser:appgroup /app /var/lib/nomos
 
-# Create a non-root user
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
-
-# Create necessary directories
-RUN mkdir -p /var/lib/nomos && \
-    chown -R appuser:appgroup /var/lib/nomos
-
-# Set working directory
 WORKDIR /app
 
-# Copy the statically linked binary
-COPY --from=app-builder /app/target/x86_64-unknown-linux-musl/release/nomos-rust .
-
-# Copy data contents
+COPY --from=builder /usr/local/bin/nomos-rust /usr/local/bin/nomos-rust
 COPY data/ /var/lib/nomos/
 
-# Show binary dependencies
-RUN ldd nomos-rust || true
+RUN chown -R appuser:appgroup /var/lib/nomos
 
-# Change ownership of the binary and data
-RUN chown -R appuser:appgroup /app /var/lib/nomos
-
-# Switch to non-root user
 USER appuser
+VOLUME ["/var/lib/nomos"]
 
-# Make sure the binary is executable
-RUN chmod +x /app/nomos-rust
-
-# Run the application
-ENTRYPOINT ["/app/nomos-rust"]
+ENTRYPOINT ["/usr/local/bin/nomos-rust"]

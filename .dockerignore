@@ -1,0 +1,12 @@
+.git
+.agents
+.VSCodeCounter
+target
+temp_scripts
+tarpaulin-report.html
+repopack-output.txt
+
+Dockerfile
+readme.md
+rustfmt.toml
+tests
