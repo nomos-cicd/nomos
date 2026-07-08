@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{collections::HashSet, path::PathBuf};
 
 use serde::Deserialize;
 
@@ -16,7 +16,7 @@ pub struct Settings {
 
 impl Settings {
     pub async fn sync(&self, job_result: &mut JobResult) -> Result<(), String> {
-        let mut credential_ids: Vec<String> = Vec::new();
+        let mut credential_ids = HashSet::new();
         for credential in &self.credentials {
             tokio::task::yield_now().await;
             if credential.read_only {
@@ -32,7 +32,7 @@ impl Settings {
                 job_result.add_log(LogLevel::Error, format!("Error syncing credential: {:?}", e));
                 continue;
             }
-            credential_ids.push(credential.id.clone());
+            credential_ids.insert(credential.id.clone());
         }
 
         let credentials = Credential::get_all()?;
@@ -79,14 +79,16 @@ pub async fn sync(directory: PathBuf, job_result: &mut JobResult) -> Result<(), 
     tokio::task::yield_now().await;
     let scripts_path = directory.join("scripts");
     if scripts_path.exists() {
-        let mut script_ids: Vec<String> = Vec::new();
+        let mut script_ids = HashSet::new();
         for entry in std::fs::read_dir(scripts_path).map_err(|e| e.to_string())? {
             tokio::task::yield_now().await;
             let entry = entry.map_err(|e| e.to_string())?;
             let path = entry.path();
             match Script::try_from(path) {
                 Ok(script) => match script.sync(job_result.into()) {
-                    Ok(_) => script_ids.push(script.id.clone()),
+                    Ok(_) => {
+                        script_ids.insert(script.id.clone());
+                    }
                     Err(e) => job_result.add_log(LogLevel::Error, format!("Error syncing script: {:?}", e)),
                 },
                 Err(e) => job_result.add_log(LogLevel::Error, format!("Error creating script: {:?}", e)),
@@ -110,7 +112,7 @@ pub async fn sync(directory: PathBuf, job_result: &mut JobResult) -> Result<(), 
     let jobs_path = directory.join("jobs");
     if jobs_path.exists() {
         tokio::task::yield_now().await;
-        let mut job_ids: Vec<String> = Vec::new();
+        let mut job_ids = HashSet::new();
         for entry in std::fs::read_dir(jobs_path).map_err(|e| e.to_string())? {
             tokio::task::yield_now().await;
             let entry = entry.map_err(|e| e.to_string())?;
@@ -122,7 +124,9 @@ pub async fn sync(directory: PathBuf, job_result: &mut JobResult) -> Result<(), 
                         continue;
                     }
                     match job.sync(job_result.into()).await {
-                        Ok(_) => job_ids.push(job.id.clone()),
+                        Ok(_) => {
+                            job_ids.insert(job.id.clone());
+                        }
                         Err(e) => job_result.add_log(LogLevel::Error, format!("Error syncing job: {:?}", e)),
                     }
                 }

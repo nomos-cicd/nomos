@@ -64,11 +64,16 @@ pub async fn get_job_result_logs(Path(id): Path<String>) -> Response {
                             .collect::<Vec<_>>()
                             .join("\n");
 
-                        Response::builder()
+                        match Response::builder()
                             .header(header::CONTENT_TYPE, "text/plain")
                             .body(text)
-                            .unwrap()
-                            .into_response()
+                        {
+                            Ok(response) => response.into_response(),
+                            Err(e) => {
+                                eprintln!("Failed to build log response for job result {}: {}", id, e);
+                                StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                            }
+                        }
                     }
                     Err(e) => {
                         eprintln!("Failed to get logs for job result {}: {}", id, e);

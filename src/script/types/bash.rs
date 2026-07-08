@@ -30,22 +30,20 @@ impl ScriptExecutor for BashScript {
             None => return Ok(()),
         };
 
-        let original_lines = self.code.lines().collect::<Vec<&str>>();
+        let mut original_lines = self.code.lines();
         let lines = replaced_code.lines();
-        let mut i = 0;
         for line in lines {
+            let original_line = original_lines.next().unwrap_or("<expanded parameter line>");
             if line.is_empty() {
-                i += 1;
                 continue;
             }
             tokio::task::yield_now().await;
             context
                 .job_result
-                .add_log(LogLevel::Info, format!("command: {}", original_lines[i]));
+                .add_log(LogLevel::Info, format!("command: {}", original_line));
             if !context.job_result.dry_run {
                 execute_command(line, context).await?;
             }
-            i += 1;
         }
 
         Ok(())

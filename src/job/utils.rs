@@ -1,9 +1,9 @@
 use once_cell::sync::Lazy;
 use std::{
-    fs::{File, OpenOptions},
+    fs::OpenOptions,
     io::{Read, Seek, SeekFrom, Write},
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::Mutex,
 };
 
 use super::models::JobResult;
@@ -30,9 +30,11 @@ pub fn default_jobs_location() -> Result<PathBuf, String> {
     Ok(path)
 }
 
-static JOB_RESULTS: Lazy<Arc<Mutex<File>>> = Lazy::new(|| {
+static JOB_RESULTS_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+fn default_job_ids_path() -> Result<PathBuf, String> {
     let path = if cfg!(target_os = "windows") {
-        let appdata = std::env::var("APPDATA").unwrap_or_else(|_| ".".to_string());
+        let appdata = std::env::var("APPDATA").map_err(|e| e.to_string())?;
         let mut path = PathBuf::from(appdata);
         path.push("nomos");
         path.push("ids.txt");
@@ -43,29 +45,27 @@ static JOB_RESULTS: Lazy<Arc<Mutex<File>>> = Lazy::new(|| {
         path
     };
 
-    // Ensure the parent directory exists
     if let Some(parent) = path.parent() {
-        if !parent.exists() {
-            std::fs::create_dir_all(parent).expect("Failed to create directories");
-        }
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
 
-    // Open the file with read/write permissions, create if it doesn't exist
-    let file = OpenOptions::new()
+    Ok(path)
+}
+
+fn open_job_ids_file() -> Result<std::fs::File, String> {
+    OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
-        .truncate(true)
-        .open(&path)
-        .expect("Failed to open or create file");
-
-    Arc::new(Mutex::new(file))
-});
+        .truncate(false)
+        .open(default_job_ids_path()?)
+        .map_err(|e| e.to_string())
+}
 
 /// Reads .../nomos/ids.txt and returns the next job id
 pub fn next_job_result_id() -> Result<String, String> {
-    let binding = Arc::clone(&JOB_RESULTS);
-    let mut file = binding.lock().unwrap_or_else(|e| e.into_inner());
+    let _guard = JOB_RESULTS_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    let mut file = open_job_ids_file()?;
 
     let mut content = String::new();
     file.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;

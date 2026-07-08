@@ -61,6 +61,10 @@ impl PartialEq for Credential {
 impl Credential {
     pub fn get(credential_id: &str, job_result: Option<&mut JobResult>) -> Result<Option<Self>, String> {
         let path = default_credentials_location()?.join(format!("{}.yml", credential_id));
+        if !path.exists() {
+            return Ok(None);
+        }
+
         match Credential::try_from(path) {
             Ok(credential) => {
                 if let Some(job_result) = job_result {
@@ -87,7 +91,7 @@ impl Credential {
                 }
                 Ok(Some(credential))
             }
-            Err(_) => Ok(None),
+            Err(e) => Err(e),
         }
     }
 
@@ -121,7 +125,10 @@ impl Credential {
             self.save()?;
             return Ok(());
         }
-        let job_result = job_result.as_deref_mut().unwrap();
+        let Some(job_result) = job_result.as_deref_mut() else {
+            self.save()?;
+            return Ok(());
+        };
 
         let current_type = self.get_credential_type();
         let existing_credential = Credential::get(self.id.as_str(), Some(job_result))?;

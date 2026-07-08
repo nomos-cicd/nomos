@@ -131,24 +131,51 @@ pub async fn dry_run_job(headers: HeaderMap, body: String) -> Response {
 pub async fn job_webhook_trigger(State(state): State<AppState>, headers: HeaderMap, body: String) -> Response {
     match Job::get_all() {
         Ok(jobs) => {
+            let mut github_payload: Option<GithubPayload> = None;
+
             for job in jobs {
                 for trigger in job.triggers.iter() {
                     match trigger {
                         TriggerType::Github(val) => {
-                            let signature = headers.get("x-hub-signature-256");
-                            let github_event = headers.get("x-github-event");
-
-                            if signature.is_none() || github_event.is_none() {
-                                eprintln!("Signature or Event not found in headers");
-                                continue;
-                            }
-
-                            let payload = match serde_json::from_str::<GithubPayload>(&body) {
-                                Ok(p) => p,
-                                Err(e) => {
-                                    eprintln!("Failed to parse GitHub payload: {}", e);
+                            let signature = match headers.get("x-hub-signature-256") {
+                                Some(signature) => match signature.to_str() {
+                                    Ok(signature) => signature,
+                                    Err(e) => {
+                                        eprintln!("Invalid GitHub signature header: {}", e);
+                                        continue;
+                                    }
+                                },
+                                None => {
+                                    eprintln!("Signature not found in headers");
                                     continue;
                                 }
+                            };
+
+                            let github_event = match headers.get("x-github-event") {
+                                Some(github_event) => match github_event.to_str() {
+                                    Ok(github_event) => github_event,
+                                    Err(e) => {
+                                        eprintln!("Invalid GitHub event header: {}", e);
+                                        continue;
+                                    }
+                                },
+                                None => {
+                                    eprintln!("Event not found in headers");
+                                    continue;
+                                }
+                            };
+
+                            if github_payload.is_none() {
+                                match serde_json::from_str::<GithubPayload>(&body) {
+                                    Ok(payload) => github_payload = Some(payload),
+                                    Err(e) => {
+                                        eprintln!("Failed to parse GitHub payload: {}", e);
+                                        continue;
+                                    }
+                                }
+                            }
+                            let Some(payload) = github_payload.as_ref() else {
+                                continue;
                             };
 
                             match Credential::get(val.secret_credential_id.as_str(), None) {
@@ -162,11 +189,7 @@ pub async fn job_webhook_trigger(State(state): State<AppState>, headers: HeaderM
                                     };
 
                                     if let Some(text_credential) = text_credential {
-                                        match is_signature_valid(
-                                            &body,
-                                            signature.unwrap().to_str().unwrap(),
-                                            &text_credential.value,
-                                        ) {
+                                        match is_signature_valid(&body, signature, &text_credential.value) {
                                             Ok(is_valid) => {
                                                 if !is_valid {
                                                     eprintln!("Invalid signature");
@@ -178,11 +201,7 @@ pub async fn job_webhook_trigger(State(state): State<AppState>, headers: HeaderM
                                                     continue;
                                                 }
 
-                                                if !val
-                                                    .events
-                                                    .iter()
-                                                    .any(|x| x == github_event.unwrap().to_str().unwrap())
-                                                {
+                                                if !val.events.iter().any(|x| x == github_event) {
                                                     eprintln!("Event does not match");
                                                     continue;
                                                 }

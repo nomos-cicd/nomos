@@ -71,7 +71,7 @@ impl Job {
             return Ok(());
         }
 
-        match Job::get(&self.id).ok().flatten() {
+        match Job::get(&self.id)? {
             Some(existing_job) => {
                 let needs_update = existing_job.name != self.name
                     || existing_job.parameters != self.parameters

@@ -65,8 +65,20 @@ impl AuthnBackend for Backend {
             next: _,
         }: Self::Credentials,
     ) -> Result<Option<Self::User>, Self::Error> {
-        let expected_username = std::env::var("NOMOS_USERNAME").unwrap();
-        let expected_password = std::env::var("NOMOS_PASSWORD").unwrap();
+        let expected_username = match std::env::var("NOMOS_USERNAME") {
+            Ok(username) => username,
+            Err(e) => {
+                eprintln!("NOMOS_USERNAME environment variable is not available: {}", e);
+                return Ok(None);
+            }
+        };
+        let expected_password = match std::env::var("NOMOS_PASSWORD") {
+            Ok(password) => password,
+            Err(e) => {
+                eprintln!("NOMOS_PASSWORD environment variable is not available: {}", e);
+                return Ok(None);
+            }
+        };
         if username != expected_username || password != expected_password {
             return Ok(None);
         }
@@ -81,8 +93,20 @@ impl AuthnBackend for Backend {
     }
 
     async fn get_user(&self, user_id: &UserId<Self>) -> Result<Option<Self::User>, Self::Error> {
-        let username = std::env::var("NOMOS_USERNAME").unwrap();
-        let password = std::env::var("NOMOS_PASSWORD").unwrap();
+        let username = match std::env::var("NOMOS_USERNAME") {
+            Ok(username) => username,
+            Err(e) => {
+                eprintln!("NOMOS_USERNAME environment variable is not available: {}", e);
+                return Ok(None);
+            }
+        };
+        let password = match std::env::var("NOMOS_PASSWORD") {
+            Ok(password) => password,
+            Err(e) => {
+                eprintln!("NOMOS_PASSWORD environment variable is not available: {}", e);
+                return Ok(None);
+            }
+        };
 
         return Ok(Some(Self::User {
             id: *user_id,
