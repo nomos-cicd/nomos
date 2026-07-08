@@ -88,7 +88,11 @@ impl JobLogger {
 
     pub fn get_logs(&self) -> Result<Vec<Log>, String> {
         let path = readable_log_file_path(&self.result_id)?;
-        let content = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
+        let content = match std::fs::read_to_string(path) {
+            Ok(content) => content,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(e) => return Err(e.to_string()),
+        };
 
         let logs = content
             .lines()

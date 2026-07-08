@@ -148,7 +148,7 @@
                     fragment.appendChild(createLogRow(log));
                 }
                 logsEl.appendChild(fragment);
-                if (shouldStickToBottom || lastIndex === null) {
+                if (shouldStickToBottom || nextAfter === null) {
                     scrollToBottom();
                 }
             }
